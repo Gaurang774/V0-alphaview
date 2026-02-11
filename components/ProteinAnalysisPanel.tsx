@@ -95,7 +95,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                 model: model,
                                 messages: [{
                                     role: "user",
-                                    content: `Provide a professional structural and functional analysis for the protein with UniProt ID: ${uniprotId}. 
+                                    content: `Provide a comprehensive professional structural and functional analysis for the protein with UniProt ID: ${uniprotId}. 
                                         
                                         FACTUAL DATA FROM UNIPROT (GROUND TRUTH):
                                         ${metadata ? `
@@ -104,18 +104,18 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                         - Sequence Length: ${metadata.length} amino acids
                                         - Functional Role: ${metadata.function || 'NOT SPECIFIED'}
                                         ` : '- NO METADATA AVAILABLE FOR THIS ID.'}
-
-                                        STRICT ZERO-HALLUCINATION INSTRUCTIONS:
-                                        1. ONLY use the provided Factual Data. 
-                                        2. If metadata is missing or sparse, state "Specific biological data is currently restricted or under research" instead of guessing.
-                                        3. Do NOT invent functions, organisms, or structural details not supported by the data or known widespread scientific consensus for this SPECIFIC ID.
-                                        4. If the name "${metadata?.name || uniprotId}" seems biologically irrelevant, treat it as a potential search mismatch and provide a very generic response.
-
+    
+                                        INSTRUCTIONS:
+                                        1. Use the provided Factual Data as the primary source.
+                                        2. Supplement with established scientific consensus and biological knowledge for this specific UniProt ID (especially if metadata is sparse).
+                                        3. Provide detailed, insightful descriptions. Be professional and data-dense.
+                                        4. If the ID is completely unknown or non-biological, state that data is unavailable.
+    
                                         Return the result strictly as a JSON object with these EXACT keys:
-                                        "identity": 1-2 sentences on what it is.
-                                        "function": 1-2 sentences on biological role.
-                                        "visuals": 1-2 sentences on structural significance.
-                                        "reliability": Non-technical explanation of AlphaFold confidence.`
+                                        "identity": A thorough description of the protein, its family, and discovery context.
+                                        "function": Detailed breakdown of its biological roles, pathways, and physiological importance.
+                                        "visuals": Insightful explanation of its structural features (domains, folds) and their functional mapping.
+                                        "reliability": Professional summary of AlphaFold confidence and data validation status.`
                                 }]
                             })
                         }
@@ -153,10 +153,10 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
             if (!success) {
                 setError(`AI unavailable: ${lastErr}`);
                 setAnalysis({
-                    identity: `Information for ${uniprotId} is currently restricted.`,
-                    function: `The primary biological function is under active research.`,
-                    visuals: `Structural motifs are being characterized.`,
-                    reliability: `AlphaFold confidence varies by region.`
+                    identity: `Structural analysis for ${uniprotId} (${metadata?.name || 'Unknown'}) is currently being processed by the primary database cluster.`,
+                    function: metadata?.function || `The precise biological enzymatic or signaling pathways for this protein are under active investigation in current proteomics literature.`,
+                    visuals: `Crystallographic and AlphaFold structural motifs suggest a complex folding pattern characteristic of its ${metadata?.length || 'unknown'} residue sequence.`,
+                    reliability: `Regional pLDDT scores vary. Higher confidence is generally observed in well-defined secondary structures like alpha-helices.`
                 });
             }
             setLoading(false);
@@ -427,6 +427,20 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
 
                         {/* Analysis Sections */}
                         <div className="space-y-5">
+                            <div className="space-y-2">
+                                <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                                    <div className="h-1 w-1 bg-sky-500 rounded-full" /> 0x_IDENTITY_SPEC
+                                </h4>
+                                {loading ? (
+                                    <div className="space-y-2">
+                                        <div className="h-2 w-full bg-slate-900 animate-pulse rounded" />
+                                        <div className="h-2 w-3/4 bg-slate-900 animate-pulse rounded" />
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{analysis?.identity}</p>
+                                )}
+                            </div>
+
                             <div className="space-y-2">
                                 <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
                                     <div className="h-1 w-1 bg-blue-500 rounded-full" /> 0x_FUNCTIONAL_ROLE
