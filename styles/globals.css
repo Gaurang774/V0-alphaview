@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+
+  body {
+    background-color: #020617;
+    /* slate-950 */
+    color: #f8fafc;
+    /* slate-50 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Precision Strike on MolStar Native UI Overlaps - Removing broad wildcards */
+.msp-plugin-ui-viewport-controls,
+.msp-viewport-controls,
+.msp-layout-region-top,
+.msp-layout-region-bottom,
+.msp-layout-region-left,
+.msp-layout-region-right,
+.msp-sequence-viewer,
+.msp-plugin-ui-toolbar,
+.msp-plugin-ui-controls,
+.msp-viewport-controls-vertical,
+.msp-viewport-controls-horizontal,
+.msp-region-state-top,
+.msp-region-state-bottom,
+.msp-region-state-left,
+.msp-region-state-right,
+.msp-logo,
+.msp-help,
+.msp-settings,
+.msp-layout-region-edge {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
+/* Ensure the main container is visible but toolbars are stripped */
+.msp-plugin,
+.msp-plugin-content {
+  background-color: transparent !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* The viewport itself should have the dark background behind the canvas */
+.msp-viewport,
+.msp-viewport-host {
+  background-color: #020617 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
