@@ -22,13 +22,14 @@ export default function GestureController({ onGesture }: GestureControllerProps)
     const requestRef = useRef<number>(0);
     const isTapped = useRef<boolean>(false);
     const lastClickTime = useRef<number>(0);
+    const lastResetTime = useRef<number>(0);
 
     // Hyperparameters
-    const ALPHA = 0.3; // Smoothing factor
-    const GAIN = 8;    // Movement sensitivity
-    const DEADZONE = 0.005; // Ignore micro-movements
-    const CLICK_THRESHOLD = 0.08;
-    const CLICK_RELEASE = 0.12;
+    const ALPHA = 0.4; // Slightly more responsive
+    const GAIN = 15;   // Higher gain for more immediate rotation
+    const DEADZONE = 0.003; // More sensitive
+    const CLICK_THRESHOLD = 0.07;
+    const CLICK_RELEASE = 0.10;
 
     useEffect(() => {
         let isMounted = true;
@@ -98,17 +99,23 @@ export default function GestureController({ onGesture }: GestureControllerProps)
                 const pinkyTip = landmarks[20];
                 const wrist = landmarks[0];
 
-                // Detect gestures
-                const isExtended = (tip: any, mid: any) => {
+                // Detect gestures with robust finger extension logic
+                const isExtended = (tipIdx: number, dipIdx: number) => {
+                    const tip = landmarks[tipIdx];
+                    const dip = landmarks[dipIdx];
+                    const mcp = landmarks[tipIdx - 3]; // Rough approximation for MCP
+
                     const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-                    const dMid = Math.hypot(mid.x - wrist.x, mid.y - wrist.y);
-                    return dTip > dMid * 1.15;
+                    const dDip = Math.hypot(dip.x - wrist.x, dip.y - wrist.y);
+
+                    // A finger is extended if the tip is significantly further from the wrist than the last knuckle
+                    return dTip > dDip * 1.1;
                 };
 
-                const indexOut = true; // Always tracking index for movement
-                const middleOut = isExtended(landmarks[12], landmarks[10]);
-                const ringOut = isExtended(landmarks[16], landmarks[14]);
-                const pinkyOut = isExtended(landmarks[20], landmarks[18]);
+                const indexOut = isExtended(8, 7);
+                const middleOut = isExtended(12, 11);
+                const ringOut = isExtended(16, 15);
+                const pinkyOut = isExtended(20, 19);
 
                 const isPalm = indexOut && middleOut && ringOut && pinkyOut;
                 const tapDist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
@@ -138,36 +145,39 @@ export default function GestureController({ onGesture }: GestureControllerProps)
                         isTapped.current = false;
                     }
 
+                    // Unified Decision Tree
                     const now = Date.now();
                     const clickLocked = now - lastClickTime.current < 400;
 
-                    // Unified Decision Tree
                     if (isPalm) {
-                        setActiveGesture('RESET VIEW');
-                        onGesture('reset');
+                        if (now - lastResetTime.current > 2000) { // Debounce reset
+                            setActiveGesture('RESET VIEW');
+                            onGesture('reset');
+                            lastResetTime.current = now;
+                        }
                     } else if (clickLocked) {
-                        // Prevent movement during/after click
+                        // Prevent movement jitter during/after click
                     } else if (results.landmarks.length === 2) {
-                        // Pinch Zoom
+                        // Pinch Zoom (using index tips of both hands)
                         setActiveGesture('ZOOMING');
                         const h1 = results.landmarks[0][8];
                         const h2 = results.landmarks[1][8];
                         const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
 
                         if (lastPinchDist.current !== null) {
-                            const delta = (dist - lastPinchDist.current) * 10;
-                            if (Math.abs(delta) > 0.01) {
+                            const delta = (dist - lastPinchDist.current) * 20; // Increased zoom sensitivity
+                            if (Math.abs(delta) > 0.005) {
                                 onGesture('zoom', delta);
                             }
                         }
                         lastPinchDist.current = dist;
-                    } else if (middleOut && !ringOut) {
+                    } else if (middleOut && indexOut && !ringOut) {
                         setActiveGesture('PANNING');
                         onGesture('pan', {
-                            x: -smoothedPos.current.x * GAIN * 2,
-                            y: smoothedPos.current.y * GAIN * 2
+                            x: -smoothedPos.current.x * GAIN * 1.5,
+                            y: smoothedPos.current.y * GAIN * 1.5
                         });
-                    } else if (!middleOut) {
+                    } else if (indexOut && !middleOut) {
                         setActiveGesture('ROTATING');
                         onGesture('rotate', {
                             x: -smoothedPos.current.x * GAIN,

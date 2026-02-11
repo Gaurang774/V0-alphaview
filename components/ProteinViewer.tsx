@@ -5,6 +5,10 @@ interface SelectionInfo {
     description?: string;
     confidence?: number;
     type?: 'helix' | 'sheet' | 'loop' | 'unknown';
+    residueName?: string;
+    residueIndex?: number;
+    chainId?: string;
+    fullLabel?: string;
 }
 
 interface ProteinViewerProps {
@@ -52,24 +56,72 @@ const ProteinViewer = forwardRef<ProteinViewerRef, ProteinViewerProps>(({ pdbDat
             const plugin = pluginRef.current;
             if (!plugin?.canvas3d) return;
 
-            // Use MolStar's built-in camera rotation for stability
-            // x and y should be deltas
-            plugin.managers.camera.rotate(x, y);
+            const camera = plugin.canvas3d.camera;
+            const snapshot = camera.getSnapshot();
+            const { position, target } = snapshot;
+
+            // Rotation math (Spherical coordinates)
+            const dx = -x * 0.02; // Longitude (Increased sensitivity)
+            const dy = -y * 0.02; // Latitude (Increased sensitivity + Inverted for natural feel)
+
+            const v = [position[0] - target[0], position[1] - target[1], position[2] - target[2]];
+            const dist = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+
+            if (dist === 0) return;
+
+            // Current angles
+            let theta = Math.atan2(v[0], v[2]); // Longitude
+            let phi = Math.acos(v[1] / dist);    // Latitude
+
+            theta += dx;
+            phi += dy;
+
+            // Clamp phi to avoid flipping at poles (0 to PI)
+            const epsilon = 0.01;
+            phi = Math.max(epsilon, Math.min(Math.PI - epsilon, phi));
+
+            const nx = dist * Math.sin(phi) * Math.sin(theta);
+            const ny = dist * Math.cos(phi);
+            const nz = dist * Math.sin(phi) * Math.cos(theta);
+
+            camera.setState({
+                position: [target[0] + nx, target[1] + ny, target[2] + nz]
+            }, 0);
+            plugin.canvas3d.requestDraw();
         },
         pan: (x: number, y: number) => {
             const plugin = pluginRef.current;
             if (!plugin?.canvas3d) return;
 
-            // Use MolStar's built-in panning
-            plugin.managers.camera.pan(x, y);
+            const camera = plugin.canvas3d.camera;
+            const snapshot = camera.getSnapshot();
+            const { position, target } = snapshot;
+
+            // Simple panning in screen space
+            const gain = 1.2; // Increased panning gain
+            camera.setState({
+                position: [position[0] - x * gain, position[1] + y * gain, position[2]],
+                target: [target[0] - x * gain, target[1] + y * gain, target[2]]
+            }, 0);
+            plugin.canvas3d.requestDraw();
         },
         zoom: (delta: number) => {
             const plugin = pluginRef.current;
             if (!plugin?.canvas3d) return;
 
-            // Use MolStar's built-in zoom
-            // delta comes from GestureController
-            plugin.managers.camera.zoom(delta);
+            const camera = plugin.canvas3d.camera;
+            const snapshot = camera.getSnapshot();
+            const { position, target } = snapshot;
+
+            const zoomFactor = delta > 0 ? 0.9 : 1.1;
+            const nx = target[0] + (position[0] - target[0]) * zoomFactor;
+            const ny = target[1] + (position[1] - target[1]) * zoomFactor;
+            const nz = target[2] + (position[2] - target[2]) * zoomFactor;
+
+            camera.setState({
+                position: [nx, ny, nz]
+            }, 0);
+            plugin.canvas3d.requestDraw();
         },
         reset: () => {
             const plugin = pluginRef.current;
@@ -352,6 +404,25 @@ const ProteinViewer = forwardRef<ProteinViewerRef, ProteinViewerProps>(({ pdbDat
                             const residueMatch = label.match(/([A-Z0-9]{3})\s+(\d+)/);
                             const displayLabel = residueMatch ? `${residueMatch[1]} ${residueMatch[2]}` : label.split('|')[0].trim();
 
+                            let residueName = '';
+                            let residueIndex: number | undefined = undefined;
+                            let chainId = '';
+
+                            try {
+                                const loci = e.current.loci;
+                                if ((StructureElement.Loci as any).is(loci) && (loci as any).elements.length > 0) {
+                                    const loc = (StructureElement.Location as any).create(loci.structure);
+                                    const el = (loci as any).elements[0];
+                                    (StructureElement.Location as any).set(loc, loci.structure, el.unit, el.indices[0]);
+
+                                    residueName = StructureProperties.residue.auth_comp_id(loc);
+                                    residueIndex = StructureProperties.residue.auth_seq_id(loc);
+                                    chainId = StructureProperties.chain.auth_asym_id(loc);
+                                }
+                            } catch (e) {
+                                console.warn('Residue detail extraction failed:', e);
+                            }
+
                             // Try to get confidence from the loci if possible (B-factor)
                             let confidence: number | undefined = undefined;
                             try {
@@ -372,7 +443,11 @@ const ProteinViewer = forwardRef<ProteinViewerRef, ProteinViewerProps>(({ pdbDat
                                 label: displayLabel,
                                 type,
                                 description: `Part of ${type !== 'unknown' ? `the ${type} structure` : 'the protein chain'}.`,
-                                confidence
+                                confidence,
+                                residueName,
+                                residueIndex,
+                                chainId,
+                                fullLabel: `${residueName} ${residueIndex} (Chain ${chainId})`
                             });
 
                             // Visually keep the selection highlighted

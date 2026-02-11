@@ -15,6 +15,10 @@ interface SelectionInfo {
     description?: string;
     confidence?: number;
     type?: 'helix' | 'sheet' | 'loop' | 'unknown';
+    residueName?: string;
+    residueIndex?: number;
+    chainId?: string;
+    fullLabel?: string;
 }
 
 export default function Explorer() {

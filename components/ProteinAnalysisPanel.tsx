@@ -6,6 +6,10 @@ interface SelectionInfo {
     description?: string;
     confidence?: number;
     type?: 'helix' | 'sheet' | 'loop' | 'unknown';
+    residueName?: string;
+    residueIndex?: number;
+    chainId?: string;
+    fullLabel?: string;
 }
 
 interface ProteinAnalysisPanelProps {
@@ -177,7 +181,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                             model: "llama3-70b-8192",
                             messages: [{
                                 role: "user",
-                                content: `As a structural expert, briefly (2 sentences max) explain the significance of this ${selectedPart.type} region (${selectedPart.label}) in ${uniprotId}. Focus on functional stability. Return plain text.`
+                                content: `As a structural expert, briefly (2 sentences max) explain the significance of the ${selectedPart.residueName || selectedPart.label} residue (Index: ${selectedPart.residueIndex}, Chain: ${selectedPart.chainId}) in this ${selectedPart.type} region of ${uniprotId}. Focus on functional stability. Return plain text.`
                             }]
                         })
                     }
@@ -295,7 +299,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                     role: "user",
                                     content: `You are AlphaBot, a protein structural biology expert. 
                                         The current protein UniProt ID is ${uniprotId}.
-                                        ${selectedPart ? `The user is currently pointing at or has selected: "${selectedPart.label}" (type: ${selectedPart.type}). Answer their question specifically about this part of the protein structure if relevant.` : ""}
+                                        ${selectedPart ? `The user is currently pointing at or has selected: "${selectedPart.fullLabel || selectedPart.label}" (type: ${selectedPart.type}). Residue: ${selectedPart.residueName}, Index: ${selectedPart.residueIndex}, Chain: ${selectedPart.chainId}. Answer their question specifically about this part of the protein structure if relevant.` : ""}
                                         Answer the user's question concisely. 
                                         
                                         You can trigger 3D view actions by including one of these tags at the end of your response:
@@ -400,7 +404,9 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                 {selectedPart ? (
                                     <div className="bg-white/5 rounded-lg p-3 border border-white/10 space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">Target: {selectedPart.label.split('|')[0]}</p>
+                                            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">
+                                                Chain {selectedPart.chainId} | {selectedPart.residueName} {selectedPart.residueIndex}
+                                            </p>
                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${selectedPart.type === 'helix' ? 'bg-indigo-500/20 text-indigo-400' : selectedPart.type === 'sheet' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-400'}`}>
                                                 {selectedPart.type}
                                             </span>
@@ -532,7 +538,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                         <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                                         <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Context Selected</span>
                                     </div>
-                                    <span className="text-xs text-slate-300 font-medium">{selectedPart.label.split('|')[0]}</span>
+                                    <span className="text-xs text-slate-300 font-medium">{selectedPart.fullLabel || selectedPart.label}</span>
                                 </div>
                             </div>
                         )}
