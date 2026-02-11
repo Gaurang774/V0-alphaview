@@ -63,6 +63,27 @@ export default function Explorer() {
     useEffect(() => {
         if (!input) return; // Depend on the new 'input' state
 
+        const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 3, backoff = 1000) => {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    if (response.status === 404) return response; // Don't retry 404s
+
+                    if (response.status === 429 || response.status === 503 || response.status >= 500) {
+                        console.warn(`[API] Attempt ${i + 1} failed with ${response.status}. Retrying...`);
+                        await new Promise(r => setTimeout(r, backoff * (i + 1)));
+                        continue;
+                    }
+                    return response;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(r => setTimeout(r, backoff * (i + 1)));
+                }
+            }
+            throw new Error('MAX_RETRIES_EXCEEDED');
+        };
+
         const resolveAndFetch = async () => {
             setMetaLoading(true);
             setPdbLoading(true);
@@ -84,8 +105,8 @@ export default function Explorer() {
             try {
                 let uniprotId = currentInput.toUpperCase().trim();
 
-                // Check Cache first
-                const cacheKey = `av_cache_${uniprotId}`;
+                // Check Cache first - with versioning to clear stale errors
+                const cacheKey = `av_cache_v2_${uniprotId}`;
                 const cached = localStorage.getItem(cacheKey);
                 if (cached) {
                     try {
@@ -112,13 +133,11 @@ export default function Explorer() {
 
                 if (!isUniprotId) {
                     setLoadingStep('Searching UniProt...');
-                    // Robust search: Prioritize reviewed entries and search broader protein/gene names
                     const searchUrl = `https://rest.uniprot.org/uniprotkb/search?query=${encodeURIComponent(uniprotId)}&format=json&limit=1`;
-                    const searchResponse = await fetch(searchUrl);
+                    const searchResponse = await fetchWithRetry(searchUrl);
 
                     if (!searchResponse.ok) {
-                        // Fallback if the query was somehow malformed (e.g. including special chars)
-                        setError('Search query could not be processed. Please try a simpler name or ID.');
+                        setError(`UniProt Search Failed (${searchResponse.status}). The service might be under heavy load.`);
                         setMetaLoading(false);
                         setPdbLoading(false);
                         return;
@@ -128,7 +147,7 @@ export default function Explorer() {
                     if (searchData.results && searchData.results.length > 0) {
                         uniprotId = searchData.results[0].primaryAccession;
                     } else {
-                        setError(`Entry "${currentInput}" not found. Try a UniProt ID like P0DTD1.`);
+                        setError(`Protein "${currentInput}" not found. Try a specific ID like P0DTD1.`);
                         setMetaLoading(false);
                         setPdbLoading(false);
                         return;
@@ -140,7 +159,7 @@ export default function Explorer() {
                 // Fetch UniProt Metadata
                 setLoadingStep('Retrieving metadata...');
                 const metaUrl = `https://rest.uniprot.org/uniprotkb/${uniprotId}?format=json`;
-                const metaResponse = await fetch(metaUrl);
+                const metaResponse = await fetchWithRetry(metaUrl);
                 let fetchedMeta = null;
                 if (metaResponse.ok) {
                     const metaData = await metaResponse.json();
@@ -152,6 +171,8 @@ export default function Explorer() {
                     };
                     setMetadata(fetchedMeta);
                     if (fetchedMeta.length && fetchedMeta.length > 1000) setIsLargeProtein(true);
+                } else {
+                    console.warn(`[Explorer] Metadata fetch failed with ${metaResponse.status}`);
                 }
 
                 // RELEASE META LOADING - This allows sidebar to start analysis
@@ -164,19 +185,19 @@ export default function Explorer() {
                 // Try API first to be safe
                 try {
                     const afApiUrl = `https://alphafold.ebi.ac.uk/api/prediction/${uniprotId}`;
-                    const afApiResponse = await fetch(afApiUrl);
+                    const afApiResponse = await fetchWithRetry(afApiUrl, {}, 2);
                     if (afApiResponse.ok) {
                         const afApiData = await afApiResponse.json();
                         if (afApiData?.[0]?.pdbUrl) pdbUrl = afApiData[0].pdbUrl;
                     }
                 } catch (e) { }
 
-                const response = await fetch(pdbUrl);
+                const response = await fetchWithRetry(pdbUrl);
                 if (!response.ok) {
                     if (response.status === 404) {
                         throw new Error('NO_STRUCTURE');
                     } else {
-                        throw new Error(`AlphaFold error (${response.status})`);
+                        throw new Error(`AlphaFold Fetch Error (${response.status})`);
                     }
                 }
 
@@ -193,11 +214,13 @@ export default function Explorer() {
                 }));
 
             } catch (err: any) {
-                console.error('[Explorer] Fetch error:', err);
+                console.error('[Explorer] Pipeline error:', err);
                 if (err.message === 'NO_STRUCTURE') {
-                    setError('No AlphaFold structure available for this protein yet.');
+                    setError('AlphaFold structure not yet modeled for this specific sequence.');
+                } else if (err.message === 'MAX_RETRIES_EXCEEDED') {
+                    setError('Connection timed out. Biological databases are currently unresponsive.');
                 } else {
-                    setError(err.message || 'An unknown error occurred');
+                    setError(err.message || 'Structural data pipeline interrupted.');
                 }
             } finally {
                 setMetaLoading(false);
