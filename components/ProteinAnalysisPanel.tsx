@@ -51,7 +51,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
         }
 
         const fetchAnalysis = async () => {
-            const cacheKey = `av_ai_v2_cache_${uniprotId}`;
+            const cacheKey = `av_ai_v3_cache_${uniprotId}`;
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
                 try {
@@ -115,7 +115,7 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                         "identity": A thorough description of the protein, its family, and discovery context.
                                         "function": Detailed breakdown of its biological roles, pathways, and physiological importance.
                                         "visuals": Insightful explanation of its structural features (domains, folds) and their functional mapping.
-                                        "reliability": Professional summary of AlphaFold confidence and data validation status.`
+                                        "reliability": Professional assessment of structural reliability, regional pLDDT distribution, and the biological utility of the predicted model.`
                                 }]
                             })
                         }
@@ -469,14 +469,21 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-3 pt-2">
                                 <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-2">
-                                    <div className="h-1 w-1 bg-emerald-500 rounded-full" /> 0x_CONFIDENCE_RATING
+                                    <div className="h-1 w-1 bg-emerald-500 rounded-full" /> 0x_RELIABILITY_METRICS
                                 </h4>
                                 {loading ? (
-                                    <div className="h-2 w-full bg-slate-900 animate-pulse rounded" />
+                                    <div className="space-y-2">
+                                        <div className="h-2 w-full bg-slate-900 animate-pulse rounded" />
+                                        <div className="h-2 w-2/3 bg-slate-900 animate-pulse rounded" />
+                                    </div>
                                 ) : (
-                                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">{analysis?.reliability}</p>
+                                    <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-3">
+                                        <p className="text-[11px] text-slate-300 font-medium leading-relaxed italic">
+                                            {analysis?.reliability}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </div>
