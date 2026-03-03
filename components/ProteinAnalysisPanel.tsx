@@ -207,7 +207,13 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                             model: "llama3-70b-8192",
                             messages: [{
                                 role: "user",
-                                content: `As a structural expert, briefly (2 sentences max) explain the significance of the ${selectedPart.residueName || selectedPart.label} residue (Index: ${selectedPart.residueIndex}, Chain: ${selectedPart.chainId}) in this ${selectedPart.type} region of ${uniprotId}. Focus on functional stability. Return plain text.`
+                                content: `You are a structural biology expert. 
+                                Protein: ${metadata?.name || uniprotId} (${uniprotId})
+                                ${metadata?.function ? `Protein Function: ${metadata.function}` : ''}
+                                
+                                Briefly (2 sentences max) explain the significance of the ${selectedPart.residueName || selectedPart.label} residue (Index: ${selectedPart.residueIndex}, Chain: ${selectedPart.chainId}) in this ${selectedPart.type} region. 
+                                How does this specific residue contribute to the protein's overall stability or function? 
+                                Return plain text.`
                             }]
                         })
                     }
@@ -309,6 +315,11 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
             let success = false;
             let lastErr = '';
 
+            const chatHistory = messages.slice(-10).map(m => ({
+                role: m.role === 'ai' ? 'assistant' : 'user',
+                content: m.text
+            }));
+
             for (const model of models) {
                 try {
                     const response = await fetch(
@@ -321,12 +332,20 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                             },
                             body: JSON.stringify({
                                 model: model,
-                                messages: [{
-                                    role: "user",
-                                    content: `You are AlphaBot, a protein structural biology expert. 
-                                        The current protein UniProt ID is ${uniprotId}.
-                                        ${selectedPart ? `The user is currently pointing at or has selected: "${selectedPart.fullLabel || selectedPart.label}" (type: ${selectedPart.type}). Residue: ${selectedPart.residueName}, Index: ${selectedPart.residueIndex}, Chain: ${selectedPart.chainId}. Answer their question specifically about this part of the protein structure if relevant.` : ""}
-                                        Answer the user's question concisely. 
+                                messages: [
+                                    {
+                                        role: "system",
+                                        content: `You are AlphaBot, a professional protein structural biology expert. 
+                                        PROTEIN CONTEXT:
+                                        - ID: ${uniprotId}
+                                        - Name: ${metadata?.name || 'Unknown'}
+                                        - Organism: ${metadata?.organism || 'Unknown'}
+                                        - Function: ${metadata?.function || 'Not fully documented'}
+                                        
+                                        ${selectedPart ? `USER SELECTION (The user is looking at this right now):
+                                        - Identity: ${selectedPart.residueName} ${selectedPart.residueIndex} (Chain ${selectedPart.chainId})
+                                        - Region Type: ${selectedPart.type}
+                                        - Label: ${selectedPart.fullLabel || selectedPart.label}` : "No specific part selected currently."}
                                         
                                         You can trigger 3D view actions by including one of these tags at the end of your response:
                                         [ACTION:SHOW_HELICES] - to highlight alpha helices.
@@ -334,8 +353,11 @@ export default function ProteinAnalysisPanel({ uniprotId, metadata, loading: str
                                         [ACTION:SHOW_CONFIDENCE] - to show pLDDT confidence view.
                                         [ACTION:RESET] - to reset the view.
                                         
-                                        User question: ${userMsg}`
-                                }]
+                                        Always prioritize answering about the USER SELECTION if the user asks "what is this" or similar contextual questions. Keep answers scientific yet accessible.`
+                                    },
+                                    ...chatHistory,
+                                    { role: "user", content: userMsg }
+                                ]
                             })
                         }
                     );

@@ -231,6 +231,10 @@ export default function Explorer() {
                     setError('AlphaFold structure not yet modeled for this specific sequence.');
                 } else if (err.message === 'MAX_RETRIES_EXCEEDED') {
                     setError('Connection timed out. Biological databases are currently unresponsive.');
+                } else if (err instanceof TypeError && err.message.toLowerCase().includes('failed to fetch')) {
+                    setError('Network error: Unable to reach external databases. Please check your internet connection and try again.');
+                } else if (err.message === 'CORRUPT_DATA') {
+                    setError('Received incomplete structure data. The model may be unavailable for this protein.');
                 } else {
                     setError(err.message || 'Structural data pipeline interrupted.');
                 }
